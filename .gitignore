@@ -9,6 +9,9 @@ types/**/*.ts
 **/types/**/*.ts
 **/types
 .vscode
+.deps
+build/contracts/*.json
+artifacts/
 projects/deploy/build/contracts/AbstractRoyalties.json
 projects/deploy/build/contracts/Address.json
 projects/deploy/build/contracts/AddressUpgradeable.json
