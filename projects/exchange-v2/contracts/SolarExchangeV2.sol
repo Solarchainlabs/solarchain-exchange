@@ -10,39 +10,121 @@ interface IAccount{
     function supportsInterface(bytes4 interfaceId) external view returns (bool);
     function owner() external view returns (address); // TBA owner
 }
+interface ISolarDapp{
+    function getUserTBA(address account) external view returns(uint tbaNftId, address tbaAddress);
+    function createTBA(address account) external returns(address);
+}
 
 contract SolarExchangeV2 is ITransferManager, ExchangeV2Core {
     using SafeMathUpgradeable for uint;
-    bytes4 constant IERC6551Account_interfaceId = 0x6faff5f1;
-    bool public enableTba;
-    function setEnableTba(bool enable) external onlyOwner{
-        enableTba=enable;
-    }
+    bytes4 constant IERC6551Account_interfaceId = 0x6faff5f1; 
+    uint256 private constant UINT256_MAX = type(uint256).max;
+    bool private _enableTba;
+    uint256 private _sellTax;
+    address private _taxRecvAddress;
+    address private _solarDappAddress;
+
     function __ExchangeV2_init(
-        address _transferProxy,
-        address _erc20TransferProxy
+        address transferProxy,
+        address erc20TransferProxy,
+        address solarDapp
     ) external initializer {
         __Context_init_unchained();
         __Ownable_init_unchained();
         __OrderValidator_init_unchained();
-        __TransferExecutor_init_unchained(_transferProxy, _erc20TransferProxy);
-        enableTba = true;
+        __TransferExecutor_init_unchained(transferProxy, erc20TransferProxy);
+        _enableTba = true;
+        _sellTax = 500; // 100/10000
+        _taxRecvAddress = solarDapp;
+        _solarDappAddress = solarDapp;
     }    
 
+    function setEnableTba(bool enable) external onlyOwner{
+        _enableTba=enable;
+    }
+
+    function setSellTax(uint256 tax) external onlyOwner{
+        _sellTax = tax;
+    }
+
+    function setTaxRecvAddress(address addr) external onlyOwner{
+        _taxRecvAddress = addr;
+    }
+
+    function getAllParam() external view returns(bool enableTba, uint256 sellTax, address taxRecvAddress, address solarDappAddress){
+        enableTba = _enableTba;
+        sellTax = _sellTax;
+        taxRecvAddress = _taxRecvAddress;
+        solarDappAddress = _solarDappAddress;
+    }
+
     function doTransfers(
-        LibDeal.DealSide memory left,
+        LibDeal.DealSide memory left, // LibAsset.Asset
         LibDeal.DealSide memory right,
         LibFeeSide.FeeSide feeSide
     ) override internal returns (uint totalMakeValue, uint totalTakeValue) {
-        if(enableTba){
-            transfer(left.asset, left.from, getTbaOwner(right.from), left.proxy);
-            transfer(right.asset, right.from, getTbaOwner(left.from), right.proxy);
+
+        totalMakeValue = left.asset.value;
+        totalTakeValue = right.asset.value;
+
+        if(_sellTax>0){
+            if(feeSide == LibFeeSide.FeeSide.LEFT){
+                uint tax = left.asset.value.mul(_sellTax).div(10000);
+                (address token) = abi.decode(left.asset.assetType.data, (address));
+                IERC20TransferProxy(left.proxy).erc20safeTransferFrom(IERC20Upgradeable(token), left.from, _taxRecvAddress, tax);
+                // update asset value
+                left.asset.value = left.asset.value.sub(tax);
+
+            }else if(feeSide == LibFeeSide.FeeSide.RIGHT){
+                uint tax = right.asset.value.mul(_sellTax).div(10000);
+                (address token) = abi.decode(right.asset.assetType.data, (address));
+                IERC20TransferProxy(right.proxy).erc20safeTransferFrom(IERC20Upgradeable(token), right.from, _taxRecvAddress, tax);
+                // update asset value
+                right.asset.value = right.asset.value.sub(tax);
+            }
+        }
+        if(_enableTba){
+            transfer(left.asset, left.from, _getTranferToAddress(left.asset.assetType.assetClass, right.from), left.proxy);
+            transfer(right.asset, right.from, _getTranferToAddress(right.asset.assetType.assetClass, left.from), right.proxy);
         }else{
             transfer(left.asset, left.from, right.from, left.proxy);
             transfer(right.asset, right.from, left.from, right.proxy);
         }
-        totalMakeValue = left.asset.value;
-        totalTakeValue = right.asset.value;
+    }
+
+    function cancel(LibOrder.Order memory order) override external {
+        require(_msgSender() == order.maker || _msgSender() == getTbaOwner(order.maker) , "not a maker");
+        require(order.salt != 0, "0 salt can't be used");
+        bytes32 orderKeyHash = LibOrder.hashKey(order);
+        fills[orderKeyHash] = UINT256_MAX;
+        emit Cancel(orderKeyHash);
+    }
+
+    // 1 List<=>N Buy, 1 Bid<=>N Sale
+    function matchOrders(
+        LibOrder.Order memory orderLeft,
+        bytes memory signatureLeft,
+        LibOrder.Order[] memory orderRightList,
+        bytes[] memory signatureRightList
+    ) external payable {
+        uint256 len = orderRightList.length;
+        for(uint256 i=0;i<len;++i){
+            validateOrders(orderLeft, signatureLeft, orderRightList[i], signatureRightList[i]);            
+            matchAndTransfer(orderLeft, orderRightList[i]);
+        }
+    }
+    // N List<=>1 Buy, N Bid<=>1 Sale
+    function matchOrders(
+        LibOrder.Order[] memory orderLeftList,
+        bytes[] memory signatureLeftList,
+        LibOrder.Order memory orderRight,
+        bytes memory signatureRight
+    ) external payable {
+        uint256 len = orderLeftList.length;
+        for(uint256 i=0;i<len;++i){
+            validateOrders(orderLeftList[i], signatureLeftList[i], orderRight, signatureRight);            
+            matchAndTransfer(orderLeftList[i], orderRight);
+        }
     }
 
     function getOrderHash(LibOrder.Order memory order) external pure returns(bytes32 orderHash, bytes32 orderHashkey) {
@@ -78,6 +160,19 @@ contract SolarExchangeV2 is ITransferManager, ExchangeV2Core {
             return supported;
         }catch{
             return false;
+        }
+    }
+
+    function _getTranferToAddress(bytes4 assetClass, address orgAddress) internal returns(address toAddress){
+        if(assetClass == LibAsset.ERC20_ASSET_CLASS || assetClass == LibAsset.ETH_ASSET_CLASS){ 
+            // !NFT asset, transfer to EOA
+            toAddress = getTbaOwner(orgAddress);
+        }else{
+            // NFT asset, transfer to TBA
+            (, toAddress) = ISolarDapp(_solarDappAddress).getUserTBA(orgAddress);
+            if(toAddress == address(0)){
+                toAddress = ISolarDapp(_solarDappAddress).createTBA(orgAddress);
+            }
         }
     }
 
