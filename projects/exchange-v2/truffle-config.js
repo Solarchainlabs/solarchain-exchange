@@ -34,7 +34,21 @@ module.exports = {
        skipDryRun: true,
       //  gasPrice: 4000000000,
        networkCheckTimeout: 600000,
-     }
+     },
+     base: {
+       provider: () => new HDWalletProvider(
+       {
+         privateKeys:[process.env.privateKey],
+         providerOrUrl: 'https://rpc.ankr.com/base',
+         pollingInterval: 6000000
+       }),
+       network_id: 8453,
+       confirmations: 2,
+       timeoutBlocks: 200,
+       skipDryRun: true,
+      //  gasPrice: 4000000000,
+       networkCheckTimeout: 600000,
+    }
   },
 
   // Set default mocha options here, use special reporters, etc.
@@ -59,12 +73,13 @@ module.exports = {
   ],
   api_keys: {
     bscscan: process.env.bscscanApikey,
-    etherscan: process.env.etherscanApikey
+    etherscan: process.env.etherscanApikey,
+    basescan: process.env.basescanApikey
   },
   verify: {
-    　　proxy: {
-     　　host: '127.0.0.1',
-     　　port: '10809'
-   　　}
-  　　}
+    proxy: {
+      host: '127.0.0.1',
+      port: '10809'
+    }
+  }
 };
