@@ -1,7 +1,9 @@
 # Deployed Addresses
 
-Deployed contracts' addresses for all supported networks can be found [here](./projects/hardhat-deploy/networks/)
-# Smart contracts for Rarible Protocol
+Deployed contracts' addresses for all supported networks can be found [here](https://solarlabs.gitbook.io/solarlabs-docs/smart-contract/addresses)
+# Smart contracts for Solarlabs exchange
+
+Solarlabs Exchange Protocol fork from Rarible Protocol
 
 Consists of:
 
@@ -12,7 +14,6 @@ Consists of:
 
 See more information about Rarible Protocol at [docs.rarible.org](https://docs.rarible.org).
 
-Also, you can find Rarible Smart Contracts deployed instances across Mainnet, Testnet and Development at [Contract Addresses](https://docs.rarible.org/reference/contract-addresses/) page.
 
 ## Compile, Test, Deploy
 
@@ -32,7 +33,7 @@ truffle test --compile-all
 
 ## Protocol overview
 
-Rarible protocol is a combination of smart-contracts for exchanging tokens, tokens themselves, APIs for order creation, discovery, standards used in smart contracts.
+Solarlabs exchange protocol is a combination of smart-contracts for exchanging tokens, tokens themselves, APIs for order creation, discovery, standards used in smart contracts.
 
 The Protocol is primarily targeted to NFTs, but it's not limited to NFTs only. Any asset on EVM blockchain can be traded on Rarible.
 
@@ -42,7 +43,7 @@ Smart contracts are constructed in the way to be upgradeable, orders have versio
 
 Users should do these steps to successfully trade on Rarible:
 
-* Approve transfers for their assets to Exchange contracts (e.g.: call approveForAll for ERC-721, approve for ERC-20) — amount of money needed for trade is price + fee on top of that. Learn more at exchange contracts [README](https://github.com/rarible/protocol-contracts/tree/master/exchange-v2).
+* Approve transfers for their assets to Exchange contracts (e.g.: call approveForAll for ERC-721, approve for ERC-20) — amount of money needed for trade is price + fee on top of that. Learn more at exchange contracts [SRC](https://github.com/Solarchainlabs/solarchain-exchange/blob/master/projects/exchange-v2/contracts/SolarExchangeV2.sol).
 * Sign trading order via preferred wallet (order is like a statement "I would like to sell my precious crypto kitty for 10 ETH").
 * Save this order and signature to the database using Rarible protocol API (in the future, storing orders on-chain will be supported too).
 
@@ -57,13 +58,7 @@ Users who want to purchase something on Rarible should do the following:
 
 ## Suggestions
 
-You are welcome to [suggest features](https://github.com/rarible/protocol/discussions) and [report bugs found](https://github.com/rarible/protocol/issues)!
-
-## Contributing
-
-The codebase is maintained using the "contributor workflow" where everyone without exception contributes patch proposals using "pull requests" (PRs). This facilitates social contribution, easy testing, and peer review.
-
-See more information on [CONTRIBUTING.md](https://github.com/rarible/protocol/blob/main/CONTRIBUTING.md).
+You are welcome to [report bugs found](https://github.com/Solarchainlabs/solarchain-exchange/issues)!
 
 ## License
 
